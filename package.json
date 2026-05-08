@@ -4,9 +4,10 @@
   "description": "Hybrid AI demo — Cloudflare Workers AI (edge LLM + embeddings) paired with MongoDB Atlas Vector Search for semantic memory. Chat UI included.",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --remote",
     "deploy": "wrangler deploy"
   },
+  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "mongodb": "^6.5.0"
   },

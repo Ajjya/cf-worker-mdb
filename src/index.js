@@ -21,14 +21,36 @@
 import { MongoClient } from "mongodb";
 
 // ---------------------------------------------------------------------------
-// MongoDB connection (module-level singleton — reused across requests in the
-// same Worker isolate, which keeps cold-start overhead low)
+// MongoDB connection — singleton with automatic reconnect.
+//
+// "Topology is closed" means the driver's internal connection pool was shut
+// down (idle timeout, network blip, Worker cold-start reuse of a stale
+// module-level variable). We detect that state and reconnect transparently.
 // ---------------------------------------------------------------------------
 let _client = null;
 
+function isConnected(client) {
+  try {
+    // topology is set and not closed
+    return client && client.topology && client.topology.isConnected();
+  } catch {
+    return false;
+  }
+}
+
 async function getDB(env) {
-  if (!_client) {
-    _client = new MongoClient(env.MONGODB_URI);
+  if (!isConnected(_client)) {
+    // Close the stale client if it exists so we don't leak sockets
+    if (_client) {
+      try { await _client.close(true); } catch { /* ignore */ }
+      _client = null;
+    }
+    _client = new MongoClient(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 15_000,
+      connectTimeoutMS: 15_000,
+      socketTimeoutMS: 45_000,
+      family: 4, // force IPv4 — fixes SRV resolution issues in miniflare
+    });
     await _client.connect();
   }
   return _client.db(env.MONGODB_DATABASE).collection(env.MONGODB_COLLECTION);
@@ -231,9 +253,15 @@ async function handleChat(request, env) {
   const userEmbedding = await embed(env, message);
 
   // ── Step 2: vector search — find similar past messages ───────────────────
-  // Requires a MongoDB Atlas vector search index named "vector_index"
-  // (see README for how to create it)
-  const similarDocs = await vectorSearch(env, userEmbedding, 3);
+  // Requires a MongoDB Atlas vector search index named "vector_index".
+  // Falls back gracefully when running against local MongoDB (no vector index).
+  let similarDocs = [];
+  try {
+    similarDocs = await vectorSearch(env, userEmbedding, 3);
+  } catch (e) {
+    // $vectorSearch is Atlas-only — silently skip when running locally
+    console.warn("vectorSearch skipped:", e.message);
+  }
 
   // ── Step 3: build LLM prompt with retrieved context ──────────────────────
   const contextBlock =
