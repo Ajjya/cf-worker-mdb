@@ -1,0 +1,19 @@
+name = "cf-worker-mdb"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Enables Node.js APIs so the `mongodb` npm driver can use TCP sockets
+compatibility_flags = ["nodejs_compat"]
+
+# Binds Cloudflare Workers AI to `env.AI`
+[ai]
+binding = "AI"
+
+# Non-secret config (safe to commit)
+[vars]
+MONGODB_DATABASE   = "hybrid_ai_demo"
+MONGODB_COLLECTION = "messages"
+
+# Secret values — set these with:
+#   wrangler secret put MONGODB_URI
+# (never commit real values)
