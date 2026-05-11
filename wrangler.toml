@@ -3,7 +3,7 @@ main = "src/index.js"
 compatibility_date = "2025-01-01"
 
 # Enables Node.js APIs so the `mongodb` npm driver can use TCP sockets
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat_v2"]
 
 # Binds Cloudflare Workers AI to `env.AI`
 [ai]

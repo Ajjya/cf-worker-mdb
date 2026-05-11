@@ -49,7 +49,6 @@ async function getDB(env) {
       serverSelectionTimeoutMS: 15_000,
       connectTimeoutMS: 15_000,
       socketTimeoutMS: 45_000,
-      family: 4, // force IPv4 — fixes SRV resolution issues in miniflare
     });
     await _client.connect();
   }
