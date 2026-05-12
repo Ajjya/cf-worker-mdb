@@ -260,6 +260,7 @@ async function handleChat(request, env) {
   let similarDocs = [];
   try {
     similarDocs = await vectorSearch(env, userEmbedding, 3);
+    console.log("vectorSearch results:", similarDocs.length, similarDocs.map(d => ({score: d.score, content: d.content?.slice(0, 50)})));
   } catch (e) {
     // $vectorSearch is Atlas-only — silently skip when running locally
     console.warn("vectorSearch skipped:", e.message);
@@ -279,11 +280,9 @@ async function handleChat(request, env) {
     messages: [
       {
         role: "system",
-        content:
-          "You are a helpful assistant. " +
-          (contextBlock
-            ? contextBlock
-            : "Answer the user concisely and helpfully."),
+        content: contextBlock
+          ? `You are a helpful assistant with memory of past conversations. Use the following context to answer the user's question:\n\n${contextBlock}Answer based on the context above when relevant.`
+          : "You are a helpful assistant. Answer the user concisely and helpfully.",
       },
       { role: "user", content: message },
     ],
@@ -391,14 +390,13 @@ async function vectorSearch(env, queryVector, limit = 3) {
           session_id: 1,
           timestamp: 1,
           score: { $meta: "vectorSearchScore" },
-          embedding: 0, // keep the projected doc small
         },
       },
     ])
     .toArray();
 
   // Only keep results with a meaningful similarity score
-  return results.filter((d) => d.score > 0.7);
+  return results.filter((d) => d.score > 0.5);
 }
 
 function json(data, status = 200) {
