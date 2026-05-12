@@ -1,9 +1,9 @@
 name = "cf-worker-mdb"
 main = "src/index.js"
-compatibility_date = "2025-01-01"
+compatibility_date = "2024-09-23"
 
-# Enables Node.js APIs so the `mongodb` npm driver can use TCP sockets
-compatibility_flags = ["nodejs_compat_v2"]
+# Enables Node.js APIs (node:net + node:tls) so the mongodb driver can use TCP sockets
+compatibility_flags = ["nodejs_compat"]
 
 # Binds Cloudflare Workers AI to `env.AI`
 [ai]

@@ -49,6 +49,9 @@ async function getDB(env) {
       serverSelectionTimeoutMS: 15_000,
       connectTimeoutMS: 15_000,
       socketTimeoutMS: 45_000,
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      checkServerIdentity: () => undefined, // required for Workers TLS compat
     });
     await _client.connect();
   }
