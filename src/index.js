@@ -259,7 +259,7 @@ async function handleChat(request, env) {
   // Falls back gracefully when running against local MongoDB (no vector index).
   let similarDocs = [];
   try {
-    similarDocs = await vectorSearch(env, userEmbedding, 3);
+    similarDocs = await vectorSearch(env, userEmbedding, 10);
     console.log("vectorSearch results:", similarDocs.length, similarDocs.map(d => ({score: d.score, content: d.content?.slice(0, 50)})));
   } catch (e) {
     // $vectorSearch is Atlas-only — silently skip when running locally
@@ -281,7 +281,7 @@ async function handleChat(request, env) {
       {
         role: "system",
         content: contextBlock
-          ? `You are a helpful assistant with memory of past conversations. Use the following context to answer the user's question:\n\n${contextBlock}Answer based on the context above when relevant.`
+          ? `You are a helpful assistant. You have access to memory of past conversations. IMPORTANT: The following messages are REAL excerpts from previous conversations with this user. You MUST use this information to answer:\n\n${contextBlock}Answer the user's question using the context above. If the context contains relevant information, state it directly and confidently.`
           : "You are a helpful assistant. Answer the user concisely and helpfully.",
       },
       { role: "user", content: message },
@@ -379,8 +379,9 @@ async function vectorSearch(env, queryVector, limit = 3) {
           index: "vector_index",
           path: "embedding",
           queryVector: Array.from(queryVector), // must be a plain JS array
-          numCandidates: 100,                   // candidates scanned (>= 10 × limit)
+          numCandidates: 150,                   // candidates scanned (>= 10 × limit)
           limit,
+          filter: { role: "user" },
         },
       },
       {
@@ -395,8 +396,26 @@ async function vectorSearch(env, queryVector, limit = 3) {
     ])
     .toArray();
 
-  // Only keep results with a meaningful similarity score
-  return results.filter((d) => d.score > 0.5);
+  // Deduplicate by content, keep top 10, min score 0.3
+  // Sort by combined rank: similarity score (70%) + recency (30%)
+  const seen = new Set();
+  const now = Date.now();
+  const ONE_DAY = 86_400_000;
+
+  return results
+    .filter((d) => {
+      if (d.score < 0.3) return false;
+      if (seen.has(d.content)) return false;
+      seen.add(d.content);
+      return true;
+    })
+    .map((d) => {
+      const ageMs = now - new Date(d.timestamp).getTime();
+      const recencyScore = Math.exp(-ageMs / (7 * ONE_DAY)); // decays over 7 days
+      d._rank = 0.7 * d.score + 0.3 * recencyScore;
+      return d;
+    })
+    .sort((a, b) => b._rank - a._rank);
 }
 
 function json(data, status = 200) {
